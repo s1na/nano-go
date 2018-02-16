@@ -918,13 +918,20 @@ func (c *Client) SearchPendingAll() (map[string]string, error) {
 // Proof of Work is precomputed for one transaction in the background.
 // If it has been a while since your last transaction it will send
 // instantly, the next one will need to wait for Proof of Work to be generated.
+// A unique id (per node) should be specified for each spend to provide idempotency.
+// That means that if you call send two times with the same id, the second request
+// won't send any additional Nano, and will return the first block instead (>= 10.0).
+// Using the same id for requests with different parameters
+// (wallet, source, destination, and amount) is undefined behavior
+// and may result in an error in the future.
 // Optionally uses work value for block from external source (>= v8.1).
 // Requires enable_control.
-func (c *Client) Send(wallet, source, destination string, amount int, work string) (map[string]string, error) {
+func (c *Client) Send(wallet, source, destination, id string, amount int, work string) (map[string]string, error) {
 	payload := map[string]interface{}{
 		"wallet":      wallet,
 		"source":      source,
 		"destination": destination,
+		"id":          id,
 		"amount":      amount,
 	}
 
