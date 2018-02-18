@@ -1,4 +1,4 @@
-package nano
+package rpc
 
 import (
 	"encoding/json"

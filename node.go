@@ -1,158 +1,67 @@
 package nano
 
 import (
-	"encoding/json"
-	"errors"
+	"github.com/s1na/nano-go/rpc"
 )
 
-// Returns receive minimum for node (>= v8.0).
-// Requires enable_control.
-func GetReceiveMinimum() (string, error) {
-	return client.fetchString("receive_minimum", nil, "amount")
+var (
+	node *Node
+)
+
+type Node struct {
+	Wallets map[string]*Wallet
+	Version string
 }
 
-// Sets amount as new receive minimum for node until restart (>= v8.0).
-// Returns true if minimum receive was successfully set.
-// Requires enable_control.
-func SetReceiveMinimum(amount string) (bool, error) {
-	payload := map[string]interface{}{
-		"amount": amount,
+func NewNode() *Node {
+	n := new(Node)
+	n.Wallets = make(map[string]*Wallet)
+
+	return n
+}
+
+func GetNode() *Node {
+	if node != nil {
+		return node
 	}
 
-	return client.isSuccess("receive_minimum_set", payload, "")
+	node = NewNode()
+
+	return node
 }
 
-// Tells the node to look for pending blocks for any account in all
-// available wallets (>= v8.0).
-// Returns true if search started successfully, and false otherwise.
-// Requires enable_control.
-func SearchAllPending() (bool, error) {
-	return client.isSuccess("search_pending_all", nil, "")
+func (n *Node) GetWallet(id string) *Wallet {
+	w, _ := n.Wallets[id]
+
+	return w
 }
 
-// Returns a map of unchecked synchronizing block hashes and their json
-// representation up to count (>= v8.0).
-func UncheckedBlocks(count int) (map[string]map[string]string, error) {
-	payload := map[string]interface{}{
-		"count": count,
-	}
+func (n *Node) CreateWallet() (*Wallet, error) {
+	w := NewWallet()
 
-	raw, err := client.call("unchecked", payload)
+	w.Id, err := rpc.CreateWallet()
 	if err != nil {
 		return nil, err
 	}
 
-	var r map[string]map[string]map[string]string
-	if err = json.Unmarshal(raw, &r); err != nil {
-		return nil, err
+	return w
+}
+
+func (n *Node) Version() (string, error) {
+	if n.Version != "" {
+		return n.Version
 	}
 
-	blocks, ok := r["blocks"]
-	if !ok {
-		return nil, errors.New("Response of unchecked has no blocks")
+	v, err := rpc.Version()
+	if err != nil {
+		return err
 	}
 
-	return blocks, nil
+	n.Version = v["node_version"]
+
+	return n.Version
 }
 
-// Clears unchecked synchronizing blocks (>= v8.0).
-// Returns true if successfully cleared.
-// Requires enable_control
-func ClearUncheckedBlocks() (bool, error) {
-	return client.isSuccess("unchecked_clear", nil, "")
-}
-
-// Tells the node to send a keepalive packet to address:port.
-// Requires enable_control.
-func SendKeepalive(address string, port int) error {
-	payload := map[string]interface{}{
-		"address": address,
-		"port":    port,
-	}
-
-	_, err := client.call("keepalive", payload)
-
-	return err
-}
-
-// Returns a map of peer addresses (IPv6:port) and their node network versions.
-func Peers() (map[string]string, error) {
-	return client.fetchMap("peers", nil, "peers")
-}
-
-// Adds a specific IP address and port as work peer for node until restart (>= v8.0).
-// Returns true if work peer was added successfully.
-// Requires enable_control.
-func AddWorkPeer(address, port string) (bool, error) {
-	payload := map[string]interface{}{
-		"address": address,
-		"port":    port,
-	}
-
-	return client.isSuccess("work_peer_add", payload, "")
-}
-
-// Retrieves work peers (>= v8.0).
-// Requires enable_control.
-func GetWorkPeers() ([]string, error) {
-	return client.fetchSlice("work_peers", nil, "work_peers")
-}
-
-// Clears work peers node list until restart (>= v8.0).
-// Requires enable_control.
-func ClearWorkPeers() (bool, error) {
-	return client.isSuccess("work_peers_clear", nil, "")
-}
-
-// Initializes bootstrap to specific IP address and port.
-// Returns true if bootstrap was started successfully.
-func Bootstrap(address string, port int) (bool, error) {
-	payload := map[string]interface{}{
-		"address": address,
-		"port":    port,
-	}
-
-	return client.isSuccess("bootstrap", payload, "")
-}
-
-// Initialize multi-connection bootstrap to random peers.
-// Returns true if bootstrap was started successfully.
-func BootstrapAny() (bool, error) {
-	return client.isSuccess("bootstrap_any", nil, "")
-}
-
-// Rebroadcasts blocks starting at hash to the network.
-// If sources > 0, additionally rebroadcast source
-// chain blocks for receive/open up to sources depth (>= v8.0).
-// If destinations > 0, additionally rebroadcast destination
-// chain blocks from receive up to destinations depth (>= v8.0).
-func Republish(hash string, count, sources, destinations int) ([]string, error) {
-	payload := map[string]interface{}{
-		"hash": hash,
-	}
-
-	if count > 0 {
-		payload["count"] = count
-	}
-
-	if sources > 0 {
-		payload["sources"] = sources
-	}
-
-	if destinations > 0 {
-		payload["destinations"] = destinations
-	}
-
-	return client.fetchSlice("republish", payload, "blocks")
-}
-
-// Returns version information for RPC, Store & Node (Major & Minor version).
-// RPC Version always retruns "1" as of 13/01/2018.
-func Version() (map[string]string, error) {
-	return client.fetchMap("version", nil, "")
-}
-
-// Stops the node safely.
-func Stop() (bool, error) {
-	return client.isSuccess("stop", nil, "")
+func (n *Node) Stop() error {
+	return rpc.Stop()
 }

@@ -1,4 +1,4 @@
-package nano
+package rpc
 
 import (
 	"bytes"
@@ -199,20 +199,27 @@ func (c *Client) fetchInterface(action string, payload map[string]interface{}, k
 }
 
 func (c *Client) fetchSlice(action string, payload map[string]interface{}, key string) ([]string, error) {
-	raw, err := c.call(action, payload)
+	rawVal, err := c.fetchInterface(action, payload, key)
 	if err != nil {
 		return nil, err
 	}
 
-	var r map[string][]string
-	if err = json.Unmarshal(raw, &r); err != nil {
-		return nil, err
+	switch val := rawVal.(type) {
+	case []string:
+		return val, nil
+	case string:
+		if val == "" {
+			return []string{}, nil
+		} else {
+			return nil, fmt.Errorf("Key %s in response of %s contains a string instead of slice.\n", key, action)
+		}
+	case []interface{}:
+		v := make([]string, len(val))
+		for i, item := range val {
+			v[i] = item.(string)
+		}
+		return v, nil
+	default:
+		return nil, fmt.Errorf("Key %s in response of %s contains an invalid type %T.\n", key, action, val)
 	}
-
-	val, ok := r[key]
-	if !ok {
-		return nil, fmt.Errorf("Response of %s doesn't contain key %s.\n", action, key)
-	}
-
-	return val, nil
 }
